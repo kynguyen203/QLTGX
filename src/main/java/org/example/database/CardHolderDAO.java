@@ -1,8 +1,13 @@
 package org.example.database;
 
+import org.example.database.DTO.CardHolderDTO;
+import org.example.database.DTO.ParkingCardDTO;
 import org.example.database.DTO.UserDTO;
 
+import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.FileInputStream;
+import java.io.IOException;
 import java.sql.*;
 import java.text.NumberFormat;
 import java.text.SimpleDateFormat;
@@ -10,225 +15,280 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class CardHolderDAO {
-    public void validateRegisterInfo(String phone, String identityCard) throws SQLException {
+    /**
+     * Transaction tổng hợp: Đăng ký người dùng và thẻ
+     * (Đây là hàm duy nhất UI cần gọi để thực hiện logic đăng ký)
+     */
+    public boolean registerUserTransaction(CardHolderDTO cardHolderDTO, ParkingCardDTO parkingCardDTO) {
         Connection conn = null;
-        PreparedStatement ps = null;
-        ResultSet rs = null;
-
         try {
             conn = DatabaseHelper.getConnection();
+            conn.setAutoCommit(false); // Bắt đầu Transaction
 
-            // Kiểm tra xem Số điện thoại này đang thuộc về ai?
-            String sql = "SELECT IdentityCard FROM CardHolders WHERE PhoneNumber = ?";
-            ps = conn.prepareStatement(sql);
-            ps.setString(1, phone);
-            rs = ps.executeQuery();
+            // 1. Tìm xem người này đã tồn tại chưa (dựa theo CMND/CCCD)
+            int holderId = findHolderByIdentity(conn, cardHolderDTO.getIdentityCard());
 
-            if (rs.next()) {
-                String existingIdentity = rs.getString("IdentityCard");
+            if (holderId != -1) {
+                // --- TRƯỜNG HỢP 1: NGƯỜI CŨ (UPDATE) ---
+                String currentPhone = getPhoneNumberById(conn, holderId);
 
-                // Nếu SĐT đã có người dùng, kiểm tra xem có phải chính chủ không
-                if (!existingIdentity.equals(identityCard)) {
-                    // SĐT này thuộc về người khác (Khác CCCD) -> LỖI
-                    throw new SQLException("Số điện thoại " + phone + " đã được đăng ký bởi người khác!");
-                }
+                // Nếu SĐT thay đổi hoặc có ảnh mới -> Cần update
+                boolean phoneChanged = !currentPhone.equals(cardHolderDTO.getPhoneNumber());
+                boolean imageUpdated = (cardHolderDTO.getAvatarImage() != null);
 
-                // Nếu existingIdentity.equals(identityCard) -> OK (Chính chủ thêm thẻ mới)
-            }
-
-            // Nếu rs.next() là false -> SĐT chưa ai dùng -> OK (Người mới hoặc người cũ đổi số mới)
-
-        } finally {
-            if (rs != null) rs.close();
-            if (ps != null) ps.close();
-            if (conn != null) conn.close();
-        }
-    }
-    public boolean registerUser(UserDTO user) {
-
-        String sqlFindHolder =
-                "SELECT HolderID, PhoneNumber FROM CardHolders WHERE IdentityCard = ?";
-
-        String sqlInsertHolder =
-                "INSERT INTO CardHolders (FullName, PhoneNumber, IdentityCard, AvatarImage) " +
-                        "VALUES (?, ?, ?, ?)";
-
-        String sqlUpdatePhone =
-                "UPDATE CardHolders SET PhoneNumber = ? WHERE HolderID = ?";
-
-        String sqlInsertCard =
-                "INSERT INTO ParkingCards " +
-                        "(HolderID, CardUID, LicensePlate, VehicleType, PublicKey, Balance) " +
-                        "VALUES (?, ?, ?, ?, ?, 0)";
-
-        try (Connection conn = DatabaseHelper.getConnection()) {
-            conn.setAutoCommit(false);
-
-            int holderId = -1;
-            String existingPhone = null;
-
-            /* 1. Tìm Holder theo CCCD */
-            try (PreparedStatement ps = conn.prepareStatement(sqlFindHolder)) {
-                ps.setString(1, user.getIdentityCard());
-                ResultSet rs = ps.executeQuery();
-
-                if (rs.next()) {
-                    holderId = rs.getInt("HolderID");
-                    existingPhone = rs.getString("PhoneNumber");
-                }
-            }
-
-            /* 2. Nếu CHƯA có → tạo Holder */
-            if (holderId == -1) {
-                try (PreparedStatement ps = conn.prepareStatement(
-                        sqlInsertHolder, Statement.RETURN_GENERATED_KEYS)) {
-
-                    ps.setString(1, user.getName());
-                    ps.setString(2, user.getPhone());
-                    ps.setString(3, user.getIdentityCard());
-
-                    if (user.getImageFile() != null && user.getImageFile().exists()) {
-                        ps.setBinaryStream(4,
-                                new FileInputStream(user.getImageFile()),
-                                (int) user.getImageFile().length());
-                    } else {
-                        ps.setNull(4, Types.BLOB);
+                if (phoneChanged) {
+                    // Nếu đổi SĐT, phải chắc chắn SĐT mới chưa bị ai khác dùng
+                    if (isPhoneNumberExists(conn, cardHolderDTO.getPhoneNumber())) {
+                        throw new RuntimeException("Số điện thoại mới này đang được người khác sử dụng!");
                     }
-
-                    ps.executeUpdate();
-                    ResultSet rs = ps.getGeneratedKeys();
-                    rs.next();
-                    holderId = rs.getInt(1);
                 }
-            }
-            /* 3. Nếu ĐÃ có → cập nhật SĐT nếu thay đổi */
-            else if (!existingPhone.equals(user.getPhone())) {
-                try (PreparedStatement ps = conn.prepareStatement(sqlUpdatePhone)) {
-                    ps.setString(1, user.getPhone());
-                    ps.setInt(2, holderId);
-                    ps.executeUpdate();
+
+                if (phoneChanged || imageUpdated) {
+                    updateCardHolder(conn, holderId, cardHolderDTO);
                 }
+            } else {
+                // --- TRƯỜNG HỢP 2: NGƯỜI MỚI (INSERT) ---
+                // Kiểm tra SĐT trước khi insert
+                if (isPhoneNumberExists(conn, cardHolderDTO.getPhoneNumber())) {
+                    throw new RuntimeException("Số điện thoại này đã được đăng ký bởi CMND/CCCD khác!");
+                }
+
+                holderId = createCardHolder(conn, cardHolderDTO);
             }
 
-            /* 4. GÁN THẺ MỚI cho Holder */
-            try (PreparedStatement ps = conn.prepareStatement(sqlInsertCard)) {
-                ps.setInt(1, holderId);
-                ps.setString(2, user.getCardUID());
-                ps.setString(3, user.getLicensePlate());
-                ps.setString(4, user.getVehicleType());
-                ps.setString(5, user.getPublicKey());
-                ps.executeUpdate();
-            }
+            // 2. Tạo thẻ mới gắn vào HolderID
+            createParkingCard(conn, holderId, parkingCardDTO);
 
-            conn.commit();
+            conn.commit(); // Thành công -> Commit
             return true;
 
+        } catch (RuntimeException re) {
+            if (conn != null)
+                try {
+                    conn.rollback();
+                } catch (SQLException ex) {
+                }
+            throw re; // Ném tiếp lỗi logic (trùng SĐT) ra UI
         } catch (Exception e) {
+            if (conn != null)
+                try {
+                    conn.rollback();
+                } catch (SQLException ex) {
+                }
             e.printStackTrace();
-            return false;
+            return false; // Lỗi hệ thống
+        } finally {
+            if (conn != null)
+                try {
+                    conn.close();
+                } catch (SQLException e) {
+                }
         }
     }
-//    public boolean registerUser(UserDTO user) {
-//
-//        String sqlInsertHolder = "INSERT INTO CardHolders (FullName, PhoneNumber, IdentityCard, AvatarImage) VALUES (?, ?, ?, ?)";
-//        String sqlInsertCard = "INSERT INTO ParkingCards (HolderID, CardUID, LicensePlate, VehicleType, PublicKey, Balance) VALUES (?, ?, ?, ?, ?, 0)";
-//        try (Connection conn = DatabaseHelper.getConnection()) {
-//            conn.setAutoCommit(false);
-//
-//            PreparedStatement psHolder = conn.prepareStatement(sqlInsertHolder, Statement.RETURN_GENERATED_KEYS);
-//            psHolder.setString(1, user.getName());
-//            psHolder.setString(2, user.getPhone());
-//            psHolder.setString(3, user.getIdentityCard());
-//
-//            if (user.getImageFile() != null && user.getImageFile().exists()) {
-//                FileInputStream fis = new FileInputStream(user.getImageFile());
-//                psHolder.setBinaryStream(4, fis, (int) user.getImageFile().length());
-//            } else {
-//                psHolder.setNull(4, Types.BLOB);
-//                System.out.println("Cảnh báo: File ảnh bị null hoặc không tồn tại!");
-//            }
-//            psHolder.executeUpdate();
-//
-//            ResultSet rs = psHolder.getGeneratedKeys();
-//            int holderId = 0;
-//            if (rs.next()) {
-//                holderId = rs.getInt(1);
-//            }
-//
-//            PreparedStatement psCard = conn.prepareStatement(sqlInsertCard);
-//            psCard.setInt(1, holderId);
-//            psCard.setString(2, user.getCardUID());
-//            psCard.setString(3, user.getLicensePlate());
-//            psCard.setString(4, user.getVehicleType());
-//            psCard.setString(5, user.getPublicKey());
-//            psCard.executeUpdate();
-//
-//            conn.commit();
-//            return true;
-//
-//        } catch (Exception e) {
-//            e.printStackTrace();
-//            return false;
-//        }
-//    }
-    public boolean updateUser(UserDTO user) {
+
+    // ==================== CÁC HÀM CRUD CƠ BẢN (PRIVATE / HELPER)
+    // ====================
+
+    /**
+     * Tìm ID chủ thẻ dựa trên CCCD/CMND
+     */
+    private int findHolderByIdentity(Connection conn, String identityCard) throws SQLException {
+        String sql = "SELECT HolderID FROM CardHolders WHERE IdentityCard = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, identityCard);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next())
+                    return rs.getInt("HolderID");
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Lấy số điện thoại hiện tại của chủ thẻ
+     */
+    private String getPhoneNumberById(Connection conn, int holderId) throws SQLException {
+        String sql = "SELECT PhoneNumber FROM CardHolders WHERE HolderID = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, holderId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next())
+                    return rs.getString("PhoneNumber");
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Kiểm tra số điện thoại đã tồn tại trong hệ thống chưa
+     */
+    private boolean isPhoneNumberExists(Connection conn, String phone) throws SQLException {
+        String sql = "SELECT COUNT(*) FROM CardHolders WHERE PhoneNumber = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, phone);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next())
+                    return rs.getInt(1) > 0;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Tạo mới chủ thẻ (CardHolder)
+     */
+    private int createCardHolder(Connection conn, CardHolderDTO cardHolderDTO) throws SQLException {
+        String sql = "INSERT INTO CardHolders (FullName, PhoneNumber, IdentityCard, AvatarImage) VALUES (?, ?, ?, ?)";
+        try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            ps.setString(1, cardHolderDTO.getFullName());
+            ps.setString(2, cardHolderDTO.getPhoneNumber());
+            ps.setString(3, cardHolderDTO.getIdentityCard());
+
+            if (cardHolderDTO.getAvatarImage() != null && cardHolderDTO.getAvatarImage().exists()) {
+                try {
+                    ps.setBytes(4, readFileToBytes(cardHolderDTO.getAvatarImage()));
+                } catch (IOException e) {
+                    ps.setNull(4, Types.BLOB);
+                }
+            } else {
+                ps.setNull(4, Types.BLOB);
+            }
+
+            ps.executeUpdate();
+
+            try (ResultSet rs = ps.getGeneratedKeys()) {
+                if (rs.next())
+                    return rs.getInt(1);
+            }
+        }
+        throw new SQLException("Không thể tạo chủ thẻ mới.");
+    }
+
+    /**
+     * Cập nhật thông tin chủ thẻ
+     */
+    private void updateCardHolder(Connection conn, int holderId, CardHolderDTO cardHolderDTO) throws SQLException {
+        boolean hasImage = cardHolderDTO.getAvatarImage() != null && cardHolderDTO.getAvatarImage().exists();
+        String sql = hasImage
+                ? "UPDATE CardHolders SET FullName = ?, PhoneNumber = ?, AvatarImage = ? WHERE HolderID = ?"
+                : "UPDATE CardHolders SET FullName = ?, PhoneNumber = ? WHERE HolderID = ?";
+
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, cardHolderDTO.getFullName());
+            ps.setString(2, cardHolderDTO.getPhoneNumber());
+
+            if (hasImage) {
+                try {
+                    ps.setBytes(3, readFileToBytes(cardHolderDTO.getAvatarImage()));
+                    ps.setInt(4, holderId);
+                } catch (IOException e) {
+                    throw new SQLException("Lỗi đọc file ảnh: " + e.getMessage());
+                }
+            } else {
+                ps.setInt(3, holderId);
+            }
+
+            ps.executeUpdate();
+        }
+    }
+
+    /**
+     * Tạo thẻ gửi xe mới (ParkingCard)
+     */
+    private void createParkingCard(Connection conn, int holderId, ParkingCardDTO parkingCardDTO) throws SQLException {
+        String sql = "INSERT INTO ParkingCards (HolderID, CardUID, LicensePlate, VehicleType, PublicKey, Balance) VALUES (?, ?, ?, ?, ?, 0)";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, holderId);
+            ps.setString(2, parkingCardDTO.getCardUID());
+            ps.setString(3, parkingCardDTO.getLicensePlate());
+            ps.setString(4, parkingCardDTO.getVehicleType());
+            ps.setString(5, parkingCardDTO.getPublicKey());
+            ps.executeUpdate();
+        }
+    }
+
+    // ==================== CÁC HÀM CÔNG KHAI KHÁC (UPDATE, QUERY)
+    // ====================
+
+    /**
+     * Kiểm tra thông tin đăng ký (Dùng cho Pre-check UI)
+     */
+    public void validateRegisterInfo(String phone, String identityCard) throws SQLException {
+        try (Connection conn = DatabaseHelper.getConnection()) {
+            int holderId = findHolderByIdentity(conn, identityCard);
+
+            if (holderId != -1) {
+                // Người cũ: Kiểm tra nếu đổi SĐT thì SĐT mới có bị trùng không
+                String currentPhone = getPhoneNumberById(conn, holderId);
+                if (!currentPhone.equals(phone)) {
+                    if (isPhoneNumberExists(conn, phone)) {
+                        throw new SQLException("Số điện thoại đã được người khác sử dụng!");
+                    }
+                }
+            } else {
+                // Người mới: Kiểm tra SĐT có bị trùng không
+                if (isPhoneNumberExists(conn, phone)) {
+                    throw new SQLException("Số điện thoại đã được đăng ký bởi người khác!");
+                }
+            }
+        }
+    }
+
+    public boolean updateUser(CardHolderDTO cardHolderDTO, ParkingCardDTO parkingCardDTO) {
         String sqlFindHolder = "SELECT HolderID FROM ParkingCards WHERE CardUID = ?";
-        String sqlUpdateHolderWithImg = "UPDATE CardHolders SET FullName = ?, PhoneNumber = ?, IdentityCard = ?, AvatarImage = ? WHERE HolderID = ?";
-        String sqlUpdateHolderNoImg   = "UPDATE CardHolders SET FullName = ?, PhoneNumber = ?, IdentityCard = ? WHERE HolderID = ?";
         String sqlUpdateCard = "UPDATE ParkingCards SET LicensePlate = ?, VehicleType = ? WHERE CardUID = ?";
 
         Connection conn = null;
         try {
             conn = DatabaseHelper.getConnection();
             conn.setAutoCommit(false);
+
+            // 1. Tìm HolderID từ CardUID
             int holderId = -1;
             try (PreparedStatement psFind = conn.prepareStatement(sqlFindHolder)) {
-                psFind.setString(1, user.getCardUID());
-                ResultSet rs = psFind.executeQuery();
-                if (rs.next()) {
-                    holderId = rs.getInt("HolderID");
+                psFind.setString(1, parkingCardDTO.getCardUID());
+                try (ResultSet rs = psFind.executeQuery()) {
+                    if (rs.next())
+                        holderId = rs.getInt("HolderID");
                 }
             }
 
-            if (holderId == -1) {
-                throw new SQLException("Không tìm thấy thẻ với UID: " + user.getCardUID());
+            if (holderId == -1)
+                throw new SQLException("Không tìm thấy thẻ với UID: " + parkingCardDTO.getCardUID());
+
+            // 2. Cập nhật thông tin chủ thẻ
+            // (Lưu ý: Logic này tương tự updateCardHolder nhưng public và quản lý conn
+            // riêng)
+            updateCardHolder(conn, holderId, cardHolderDTO);
+
+            // 3. Cập nhật thông tin thẻ
+            try (PreparedStatement psCard = conn.prepareStatement(sqlUpdateCard)) {
+                psCard.setString(1, parkingCardDTO.getLicensePlate());
+                psCard.setString(2, parkingCardDTO.getVehicleType());
+                psCard.setString(3, parkingCardDTO.getCardUID());
+                psCard.executeUpdate();
             }
-            PreparedStatement psHolder;
-            if (user.getImageFile() != null && user.getImageFile().exists()) {
-                psHolder = conn.prepareStatement(sqlUpdateHolderWithImg);
-                psHolder.setString(1, user.getName());
-                psHolder.setString(2, user.getPhone());
-                psHolder.setString(3, user.getIdentityCard());
-                FileInputStream fis = new FileInputStream(user.getImageFile());
-                psHolder.setBinaryStream(4, fis, (int) user.getImageFile().length());
-                psHolder.setInt(5, holderId);
-            } else {
-                psHolder = conn.prepareStatement(sqlUpdateHolderNoImg);
-                psHolder.setString(1, user.getName());
-                psHolder.setString(2, user.getPhone());
-                psHolder.setString(3, user.getIdentityCard());
-                psHolder.setInt(4, holderId);
-            }
-            psHolder.executeUpdate();
-            psHolder.close();
-            PreparedStatement psCard = conn.prepareStatement(sqlUpdateCard);
-            psCard.setString(1, user.getLicensePlate());
-            psCard.setString(2, user.getVehicleType());
-            psCard.setString(3, user.getCardUID());
-            psCard.executeUpdate();
-            psCard.close();
 
             conn.commit();
             return true;
 
         } catch (Exception e) {
-            if (conn != null) try { conn.rollback(); } catch (SQLException ex) {}
+            if (conn != null)
+                try {
+                    conn.rollback();
+                } catch (SQLException ex) {
+                }
             e.printStackTrace();
             return false;
         } finally {
-            if (conn != null) try { conn.close(); } catch (SQLException e) {}
+            if (conn != null)
+                try {
+                    conn.close();
+                } catch (SQLException e) {
+                }
         }
     }
+
     public UserDTO getUserByCardID(String cardUID) {
         String sql = "SELECT h.FullName, h.PhoneNumber, h.IdentityCard, c.LicensePlate, c.VehicleType, c.Balance " +
                 "FROM ParkingCards c " +
@@ -236,7 +296,7 @@ public class CardHolderDAO {
                 "WHERE c.CardUID = ?";
 
         try (Connection conn = DatabaseHelper.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
 
             ps.setString(1, cardUID);
             ResultSet rs = ps.executeQuery();
@@ -249,8 +309,7 @@ public class CardHolderDAO {
                         rs.getString("LicensePlate"),
                         rs.getString("VehicleType"),
                         cardUID,
-                        rs.getBigDecimal("Balance")
-                );
+                        rs.getBigDecimal("Balance"));
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -264,13 +323,13 @@ public class CardHolderDAO {
                 "JOIN CardHolders h ON c.HolderID = h.HolderID " +
                 "WHERE c.CardUID = ?";
         try (Connection conn = DatabaseHelper.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
 
             ps.setString(1, cardUID);
             ResultSet rs = ps.executeQuery();
 
             if (rs.next()) {
-                return new String[]{
+                return new String[] {
                         rs.getString("FullName"),
                         rs.getString("PhoneNumber"),
                         rs.getString("LicensePlate"),
@@ -284,11 +343,12 @@ public class CardHolderDAO {
     }
 
     public boolean saveTransaction(String cardUID, String type, int amount, String signature) {
-        String sql = "INSERT INTO TransactionLogs (CardID, TransactionType, Amount, DigitalSignature, TransactionTime) " +
+        String sql = "INSERT INTO TransactionLogs (CardID, TransactionType, Amount, DigitalSignature, TransactionTime) "
+                +
                 "VALUES ((SELECT CardID FROM ParkingCards WHERE CardUID = ?), ?, ?, ?, NOW())";
 
         try (Connection conn = DatabaseHelper.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
 
             ps.setString(1, cardUID);
             ps.setString(2, type);
@@ -306,7 +366,7 @@ public class CardHolderDAO {
         String sql = "UPDATE ParkingCards SET Balance = ? WHERE CardUID = ?";
 
         try (Connection conn = DatabaseHelper.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
 
             ps.setBigDecimal(1, new java.math.BigDecimal(newBalance));
             ps.setString(2, cardUID);
@@ -319,16 +379,15 @@ public class CardHolderDAO {
     }
 
     public boolean checkIn(String cardUID) {
-        if (isCarParked(cardUID)) return false;
+        if (isCarParked(cardUID))
+            return false;
 
         String sql = "INSERT INTO ParkingSessions (CardID, CheckInTime, Status) " +
                 "VALUES ((SELECT CardID FROM ParkingCards WHERE CardUID = ?), NOW(), 'PARKED')";
 
         try (Connection conn = DatabaseHelper.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, cardUID);
-
             return ps.executeUpdate() > 0;
         } catch (Exception e) {
             e.printStackTrace();
@@ -341,7 +400,7 @@ public class CardHolderDAO {
                 "WHERE CardID = (SELECT CardID FROM ParkingCards WHERE CardUID = ?) " +
                 "AND Status = 'PARKED'";
         try (Connection conn = DatabaseHelper.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
 
             ps.setString(1, cardUID);
             ResultSet rs = ps.executeQuery();
@@ -363,7 +422,7 @@ public class CardHolderDAO {
                 "AND Status = 'PARKED'";
 
         try (Connection conn = DatabaseHelper.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
 
             ps.setBigDecimal(1, java.math.BigDecimal.valueOf(fee));
             ps.setString(2, cardUID);
@@ -379,7 +438,7 @@ public class CardHolderDAO {
         String sql = "SELECT PublicKey FROM ParkingCards WHERE CardUID = ?";
 
         try (Connection conn = DatabaseHelper.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
 
             ps.setString(1, cardUID);
             ResultSet rs = ps.executeQuery();
@@ -398,11 +457,13 @@ public class CardHolderDAO {
         String sql = "SELECT count(*) FROM ParkingSessions " +
                 "WHERE CardID = (SELECT CardID FROM ParkingCards WHERE CardUID = ?) AND Status = 'PARKED'";
         try (Connection conn = DatabaseHelper.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+                PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, cardUID);
             ResultSet rs = ps.executeQuery();
-            if (rs.next()) return rs.getInt(1) > 0;
-        } catch (Exception e) {}
+            if (rs.next())
+                return rs.getInt(1) > 0;
+        } catch (Exception e) {
+        }
         return false;
     }
 
@@ -416,8 +477,8 @@ public class CardHolderDAO {
                 "ORDER BY s.CheckInTime DESC";
 
         try (Connection conn = DatabaseHelper.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
+                PreparedStatement ps = conn.prepareStatement(sql);
+                ResultSet rs = ps.executeQuery()) {
 
             java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("HH:mm:ss dd/MM/yyyy");
 
@@ -429,13 +490,14 @@ public class CardHolderDAO {
                 String displayCar = vehicleType + " - " + license;
                 String displayTime = sdf.format(checkInTime);
 
-                parkedList.add(new String[]{displayCar, displayTime});
+                parkedList.add(new String[] { displayCar, displayTime });
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
         return parkedList;
     }
+
     public List<String[]> getTransactionHistory(String cardUID) {
         List<String[]> historyList = new ArrayList<>();
         String sql = "SELECT t.TransactionTime, t.TransactionType, t.Amount " +
@@ -444,15 +506,15 @@ public class CardHolderDAO {
                 "WHERE c.CardUID = ? " +
                 "ORDER BY t.TransactionTime DESC";
 
-        try (java.sql.Connection conn = DatabaseHelper.getConnection();
-             java.sql.PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (Connection conn = DatabaseHelper.getConnection();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
 
             ps.setString(1, cardUID);
-            java.sql.ResultSet rs = ps.executeQuery();
-            SimpleDateFormat sdf = new SimpleDateFormat("HH:mm:ss dd/MM/yyyy");
-            NumberFormat nf = NumberFormat.getInstance(java.util.Locale.US);
+            ResultSet rs = ps.executeQuery();
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("HH:mm:ss dd/MM/yyyy");
+            java.text.NumberFormat nf = java.text.NumberFormat.getInstance(java.util.Locale.US);
             while (rs.next()) {
-                java.sql.Timestamp ts = rs.getTimestamp("TransactionTime");
+                Timestamp ts = rs.getTimestamp("TransactionTime");
                 String typeRaw = rs.getString("TransactionType");
                 java.math.BigDecimal amountBg = rs.getBigDecimal("Amount");
                 long amount = (amountBg != null) ? amountBg.longValue() : 0;
@@ -469,57 +531,94 @@ public class CardHolderDAO {
                 } else {
                     typeDisplay = typeRaw;
                 }
-                historyList.add(new String[]{timeDisplay, typeDisplay, amountDisplay, status});
+                historyList.add(new String[] { timeDisplay, typeDisplay, amountDisplay, status });
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
         return historyList;
     }
-    /**
-     * Lấy lịch sử ra vào bãi xe của một thẻ
-     */
-    public java.util.List<String[]> getParkingSessionHistory(String cardUID) {
-        java.util.List<String[]> sessionList = new java.util.ArrayList<>();
 
-        // Truy vấn: Join bảng Session với bảng Card để lọc theo CardUID
+    public List<String[]> getParkingSessionHistory(String cardUID) {
+        List<String[]> sessionList = new ArrayList<>();
         String sql = "SELECT s.CheckInTime, s.CheckOutTime, c.LicensePlate, s.FeeAmount, s.Status " +
                 "FROM ParkingSessions s " +
                 "JOIN ParkingCards c ON s.CardID = c.CardID " +
                 "WHERE c.CardUID = ? " +
-                "ORDER BY s.CheckInTime DESC"; // Mới nhất lên đầu
+                "ORDER BY s.CheckInTime DESC";
 
-        try (java.sql.Connection conn = DatabaseHelper.getConnection();
-             java.sql.PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (Connection conn = DatabaseHelper.getConnection();
+                PreparedStatement ps = conn.prepareStatement(sql)) {
 
             ps.setString(1, cardUID);
-            java.sql.ResultSet rs = ps.executeQuery();
+            ResultSet rs = ps.executeQuery();
 
             java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("HH:mm dd/MM/yyyy");
             java.text.NumberFormat nf = java.text.NumberFormat.getInstance(java.util.Locale.US);
 
             while (rs.next()) {
-                java.sql.Timestamp inTime = rs.getTimestamp("CheckInTime");
-                java.sql.Timestamp outTime = rs.getTimestamp("CheckOutTime");
+                Timestamp inTime = rs.getTimestamp("CheckInTime");
+                Timestamp outTime = rs.getTimestamp("CheckOutTime");
                 String license = rs.getString("LicensePlate");
                 java.math.BigDecimal feeBg = rs.getBigDecimal("FeeAmount");
                 String statusRaw = rs.getString("Status");
 
-                // Format dữ liệu
                 String strIn = (inTime != null) ? sdf.format(inTime) : "";
-                String strOut = (outTime != null) ? sdf.format(outTime) : "---"; // Chưa ra
+                String strOut = (outTime != null) ? sdf.format(outTime) : "---";
                 String strFee = (feeBg != null && feeBg.longValue() > 0) ? nf.format(feeBg) + " đ" : "0 đ";
 
-                // Dịch trạng thái sang tiếng Việt cho thân thiện
                 String strStatus = statusRaw;
-                if ("PARKED".equalsIgnoreCase(statusRaw)) strStatus = "Đang gửi";
-                else if ("COMPLETED".equalsIgnoreCase(statusRaw)) strStatus = "Đã ra";
+                if ("PARKED".equalsIgnoreCase(statusRaw))
+                    strStatus = "Đang gửi";
+                else if ("COMPLETED".equalsIgnoreCase(statusRaw))
+                    strStatus = "Đã ra";
 
-                sessionList.add(new String[]{strIn, strOut, license, strFee, strStatus});
+                sessionList.add(new String[] { strIn, strOut, license, strFee, strStatus });
             }
         } catch (Exception e) {
             e.printStackTrace();
         }
         return sessionList;
+    }
+
+    // --- HELPER METHODS ---
+    private byte[] readFileToBytes(File file) throws IOException {
+        try (FileInputStream fis = new FileInputStream(file);
+                ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[1024];
+            int bytesRead;
+            while ((bytesRead = fis.read(buffer)) != -1) {
+                bos.write(buffer, 0, bytesRead);
+            }
+            return bos.toByteArray();
+        }
+    }
+
+//    private void closeResources(Connection conn, Statement... statements) {
+//        for (Statement stmt : statements) {
+//            if (stmt != null)
+//                try {
+//                    stmt.close();
+//                } catch (SQLException e) {
+//                }
+//        }
+//        if (conn != null)
+//            try {
+//                conn.close();
+//            } catch (SQLException e) {
+//            }
+//    }
+    public boolean rollbackRegistration(String cardUID) {
+        String sqlDeleteCard = "DELETE FROM ParkingCards WHERE CardUID = ?";
+        try (Connection conn = DatabaseHelper.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sqlDeleteCard)) {
+
+            ps.setString(1, cardUID);
+            return ps.executeUpdate() > 0;
+
+        } catch (SQLException e) {
+            e.printStackTrace();
+            return false;
+        }
     }
 }
