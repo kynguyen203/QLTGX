@@ -9,7 +9,11 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.io.File;
+import java.security.KeyFactory;
 import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.spec.X509EncodedKeySpec;
+import java.util.Base64;
 import java.util.Map;
 
 public class TopUpPanel extends BasePanel {
@@ -50,12 +54,6 @@ public class TopUpPanel extends BasePanel {
         lblTopUpCardInfo.setForeground(Color.GRAY);
         card.add(lblTopUpCardInfo, gbc);
 
-        // Add a hidden label for balance to maintain state if needed, or just keep it
-        // internal
-        // In the original code, lblBalance is in the Header.
-        // Here we might want to display it in the panel or just update the main UI via
-        // callback.
-        // I'll add a local balance label for the panel as well.
         lblBalance = new JLabel("Số dư: 0 VNĐ"); // Local display
         lblBalance.setVisible(false); // Maybe show it in the info label instead
 
@@ -113,12 +111,10 @@ public class TopUpPanel extends BasePanel {
                 showError("Lỗi đọc thẻ (Applet chưa sẵn sàng)!");
                 return;
             }
-            //byte[] avatarBytes = cardService.downloadImage();
             String[] info = cardDao.getCardInfoByUID(cardUID);
             if (info != null) {
                 String name = info[0];
                 String plate = info[2];
-                File avatarFile = new File(info[3]);
 
                 String infoHtml = "<html><div style='text-align: center; width: 300px;'>"
                         + "<b style='font-size:12px; color:#2980b9'>THÔNG TIN THẺ</b><br>"
@@ -129,11 +125,6 @@ public class TopUpPanel extends BasePanel {
                         + "Số dư: <span style='color:red; font-size:14px'>" + formatCurrency(chipBalance) + "</span>"
                         + "</div></html>";
                         lblTopUpCardInfo.setText(infoHtml);
-
-//                        lblTopUpCardInfo.setIcon(avatarFile.exists());
-//                        lblTopUpCardInfo.setHorizontalTextPosition(JLabel.RIGHT);
-//                        lblTopUpCardInfo.setIconTextGap(15);
-
                         lblBalance.setText("Số dư: " + formatCurrency(chipBalance));
                         showSuccess("Đã nhận diện thẻ: " + cardUID);
                         btnTopUp.setEnabled(true);
@@ -169,13 +160,21 @@ public class TopUpPanel extends BasePanel {
                 return;
             }
             PrivateKey hostPrivKey = keyManager.getPrivateKey();
-            if (hostPrivKey == null) {
-                showError("Lỗi hệ thống: Không tìm thấy khóa bảo mật của Host!");
+            String pubKeyBase64 = cardDao.getCardPublicKey(cardUID);
+            if (pubKeyBase64 == null) {
+                showError("Thẻ chưa đăng ký khóa công khai trong hệ thống!");
+                return;
+            }
+            byte[] keyBytes = Base64.getDecoder().decode(pubKeyBase64);
+            X509EncodedKeySpec spec = new X509EncodedKeySpec(keyBytes);
+            PublicKey cardPubKey = KeyFactory.getInstance("RSA").generatePublic(spec);
+            if (hostPrivKey == null || cardPubKey == null) {
+                showError("Lỗi hệ thống: Thiếu khóa bảo mật!");
                 return;
             }
             this.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
 
-            String cardSignature = cardService.topUp(amount, hostPrivKey);
+            String cardSignature = cardService.topUp(amount, hostPrivKey, cardPubKey);
             if (cardSignature != null) {
                 int newBalance = cardService.getBalance();
                 boolean logSaved = cardDao.saveTransaction(cardUID, "TOPUP", amount, cardSignature);

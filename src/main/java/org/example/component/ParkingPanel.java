@@ -8,8 +8,12 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.security.KeyFactory;
 import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.spec.X509EncodedKeySpec;
 import java.text.SimpleDateFormat;
+import java.util.Base64;
 import java.util.Date;
 import java.util.Map;
 
@@ -161,12 +165,20 @@ public class ParkingPanel extends BasePanel {
             }
 
             PrivateKey hostPrivKey = keyManager.getPrivateKey();
-            if (hostPrivKey == null) {
-                showError("Lỗi hệ thống: Không tìm thấy Host Key!");
+            String pubKeyBase64 = cardDao.getCardPublicKey(cardUID);
+            if (pubKeyBase64 == null) {
+                showError("Thẻ chưa đăng ký khóa công khai trong hệ thống!");
+                return;
+            }
+            byte[] keyBytes = Base64.getDecoder().decode(pubKeyBase64);
+            X509EncodedKeySpec spec = new X509EncodedKeySpec(keyBytes);
+            PublicKey cardPubKey = KeyFactory.getInstance("RSA").generatePublic(spec);
+            if (hostPrivKey == null || cardPubKey == null) {
+                showError("Lỗi hệ thống: Thiếu khóa bảo mật!");
                 return;
             }
 
-            String signature = cardService.pay(totalFee, hostPrivKey);
+            String signature = cardService.pay(totalFee, hostPrivKey, cardPubKey);
 
             if (signature == null) {
                 showError("Thanh toán thất bại! Lỗi xử lý Chip.");

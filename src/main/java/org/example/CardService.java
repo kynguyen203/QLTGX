@@ -225,15 +225,15 @@ public class CardService {
         return -1;
     }
 
-    public String topUp(int amount, PrivateKey hostPrivateKey) {
-        return performFinancialOp(INS_TOP_UP, amount, hostPrivateKey);
+    public String topUp(int amount, PrivateKey hostPrivateKey, PublicKey cardPublicKey) {
+        return performFinancialOp(INS_TOP_UP, amount, hostPrivateKey, cardPublicKey);
     }
 
-    public String pay(int amount, PrivateKey hostPrivateKey) {
-        return performFinancialOp(INS_PAY, amount, hostPrivateKey);
+    public String pay(int amount, PrivateKey hostPrivateKey, PublicKey cardPublicKey) {
+        return performFinancialOp(INS_PAY, amount, hostPrivateKey, cardPublicKey);
     }
 
-    private String performFinancialOp(byte ins, int amount, PrivateKey hostPrivateKey) {
+    private String performFinancialOp(byte ins, int amount, PrivateKey hostPrivateKey, PublicKey cardPublicKey) {
         try {
             int timestamp = (int) (System.currentTimeMillis() / 1000);
 
@@ -257,8 +257,18 @@ public class CardService {
             if (resp.getSW() == SW_SUCCESS) {
                 byte[] respData = resp.getData();
                 if (respData.length > 4) {
-                    byte[] cardSig = Arrays.copyOfRange(respData, 4, respData.length);
-                    return java.util.Base64.getEncoder().encodeToString(cardSig);
+                    byte[] balanceBytes = Arrays.copyOfRange(respData, 0, 4);
+                    byte[] cardSigBytes = Arrays.copyOfRange(respData, 4, respData.length);
+                    Signature verifier = Signature.getInstance("SHA1withRSA");
+                    verifier.initVerify(cardPublicKey);
+                    verifier.update(balanceBytes);
+
+                    if (verifier.verify(cardSigBytes)) {
+                        return Base64.getEncoder().encodeToString(cardSigBytes);
+                    } else {
+                        System.err.println("CẢNH BÁO: Chữ ký từ thẻ KHÔNG HỢP LỆ! Giao dịch có thể bị giả mạo.");
+                        return null;
+                    }
                 }
             } else {
                 System.err.println("Financial Op Error: " + Integer.toHexString(resp.getSW()));
