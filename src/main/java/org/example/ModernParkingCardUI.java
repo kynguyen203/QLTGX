@@ -2,7 +2,7 @@ package org.example;
 
 import org.example.component.*;
 import org.example.component.BasePanel.StatusListener;
-import org.example.database.CardHolderDAO;
+import org.example.database.DAO;
 import org.example.util.EnvKeyLoader;
 
 import javax.swing.*;
@@ -22,7 +22,7 @@ public class ModernParkingCardUI extends JFrame {
     private JLabel lblBalance;
 
     private CardService cardService;
-    private CardHolderDAO cardDao;
+    private DAO cardDao;
     private EnvKeyLoader keyManager;
 
     public ModernParkingCardUI() {
@@ -41,7 +41,7 @@ public class ModernParkingCardUI extends JFrame {
         add(createHeader(), BorderLayout.NORTH);
 
         cardService = new CardService();
-        cardDao = new CardHolderDAO();
+        cardDao = new DAO();
         keyManager = new EnvKeyLoader();
 
         StatusListener statusListener = new StatusListener() {

@@ -11,6 +11,13 @@ public class CardHolderDTO {
     private File avatarImage;
     private LocalDateTime createdDate;
 
+    public CardHolderDTO(String fullName, String phoneNumber, String identityCard) {
+        this.fullName = fullName;
+        this.phoneNumber = phoneNumber;
+        this.identityCard = identityCard;
+    }
+    public CardHolderDTO() {
+    }
     public Integer getHolderId() {
         return holderId;
     }

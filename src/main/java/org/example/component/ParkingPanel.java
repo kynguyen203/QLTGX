@@ -1,7 +1,7 @@
 package org.example.component;
 
 import org.example.CardService;
-import org.example.database.CardHolderDAO;
+import org.example.database.DAO;
 import org.example.util.EnvKeyLoader;
 
 import javax.swing.*;
@@ -12,9 +12,7 @@ import java.security.KeyFactory;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.spec.X509EncodedKeySpec;
-import java.text.SimpleDateFormat;
 import java.util.Base64;
-import java.util.Date;
 import java.util.Map;
 
 public class ParkingPanel extends BasePanel {
@@ -22,8 +20,8 @@ public class ParkingPanel extends BasePanel {
     private JTable parkingTable;
     private DefaultTableModel parkingTableModel;
 
-    public ParkingPanel(CardService cardService, CardHolderDAO cardDao, EnvKeyLoader keyManager,
-            StatusListener statusListener) {
+    public ParkingPanel(CardService cardService, DAO cardDao, EnvKeyLoader keyManager,
+                        StatusListener statusListener) {
         super(cardService, cardDao, keyManager, statusListener);
         setLayout(new GridLayout(1, 2, 15, 0));
         setBorder(new EmptyBorder(20, 20, 20, 20));
@@ -118,18 +116,18 @@ public class ParkingPanel extends BasePanel {
     private void logicProcessExit() {
         performCardHandshake();
         try {
+
             String cardUID = cardService.getCardID();
-            if (!performSecureLogin(cardUID,"xe vào bến")) {
-                cardService.disconnect();
-                notifyStatus("Thẻ: Offline", Color.WHITE);
-                return;
-            }
             long inTime = cardDao.getCheckInTime(cardUID);
             if (inTime == 0) {
                 showError("Thẻ này chưa Check-in (Xe không có trong bãi)!");
                 return;
             }
-
+            if (!performSecureLogin(cardUID,"xe vào bến")) {
+                cardService.disconnect();
+                notifyStatus("Thẻ: Offline", Color.WHITE);
+                return;
+            }
             String[] cardInfo = cardDao.getCardInfoByUID(cardUID);
             String licensePlate = (cardInfo != null) ? cardInfo[2] : "Unknown";
             String vehicleType = (cardInfo != null) ? cardInfo[3] : "Xe máy";

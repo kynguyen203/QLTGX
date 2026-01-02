@@ -1,20 +1,17 @@
 package org.example.component;
 
 import org.example.CardService;
-import org.example.database.CardHolderDAO;
+import org.example.database.DAO;
 import org.example.util.EnvKeyLoader;
-import org.example.util.ImageUtils;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
-import java.io.File;
 import java.security.KeyFactory;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.Base64;
-import java.util.Map;
 
 public class TopUpPanel extends BasePanel {
 
@@ -23,8 +20,8 @@ public class TopUpPanel extends BasePanel {
     private JButton btnTopUp;
     private JLabel lblBalance;
 
-    public TopUpPanel(CardService cardService, CardHolderDAO cardDao, EnvKeyLoader keyManager,
-            StatusListener statusListener) {
+    public TopUpPanel(CardService cardService, DAO cardDao, EnvKeyLoader keyManager,
+                      StatusListener statusListener) {
         super(cardService, cardDao, keyManager, statusListener);
         setLayout(new GridBagLayout());
         setBorder(new EmptyBorder(50, 50, 50, 50));

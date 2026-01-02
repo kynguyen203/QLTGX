@@ -1,7 +1,7 @@
 package org.example.component;
 
 import org.example.CardService;
-import org.example.database.CardHolderDAO;
+import org.example.database.DAO;
 import org.example.util.EnvKeyLoader;
 
 import javax.swing.*;
@@ -16,8 +16,8 @@ public class HistoryPanel extends BasePanel {
     private DefaultTableModel historyModel;
     private JLabel lblHistoryOwner;
 
-    public HistoryPanel(CardService cardService, CardHolderDAO cardDao, EnvKeyLoader keyManager,
-            StatusListener statusListener) {
+    public HistoryPanel(CardService cardService, DAO cardDao, EnvKeyLoader keyManager,
+                        StatusListener statusListener) {
         super(cardService, cardDao, keyManager, statusListener);
         setLayout(new GridBagLayout());
         setBorder(new EmptyBorder(30, 30, 30, 30));

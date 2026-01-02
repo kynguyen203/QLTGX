@@ -1,7 +1,7 @@
 package org.example.component;
 
 import org.example.CardService;
-import org.example.database.CardHolderDAO;
+import org.example.database.DAO;
 import org.example.util.EnvKeyLoader;
 
 import javax.swing.*;
@@ -29,7 +29,7 @@ public abstract class BasePanel extends JPanel {
     protected static final Color TEXT_PRIMARY = new Color(44, 62, 80);
 
     protected CardService cardService;
-    protected CardHolderDAO cardDao;
+    protected DAO cardDao;
     protected EnvKeyLoader keyManager;
     protected StatusListener statusListener;
 
@@ -39,8 +39,8 @@ public abstract class BasePanel extends JPanel {
         void updateBalance(int balance);
     }
 
-    public BasePanel(CardService cardService, CardHolderDAO cardDao, EnvKeyLoader keyManager,
-            StatusListener statusListener) {
+    public BasePanel(CardService cardService, DAO cardDao, EnvKeyLoader keyManager,
+                     StatusListener statusListener) {
         this.cardService = cardService;
         this.cardDao = cardDao;
         this.keyManager = keyManager;

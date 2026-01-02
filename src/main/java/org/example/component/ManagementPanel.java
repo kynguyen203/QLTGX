@@ -1,10 +1,9 @@
 package org.example.component;
 
 import org.example.CardService;
-import org.example.database.CardHolderDAO;
+import org.example.database.DAO;
 import org.example.database.DTO.CardHolderDTO;
 import org.example.database.DTO.ParkingCardDTO;
-import org.example.database.DTO.UserDTO;
 import org.example.util.EnvKeyLoader;
 import org.example.util.ImageUtils;
 
@@ -38,8 +37,8 @@ public class ManagementPanel extends BasePanel {
 
     private FormMode currentMode = FormMode.REGISTER_MODE;
 
-    public ManagementPanel(CardService cardService, CardHolderDAO cardDao, EnvKeyLoader keyManager,
-            StatusListener statusListener) {
+    public ManagementPanel(CardService cardService, DAO cardDao, EnvKeyLoader keyManager,
+                           StatusListener statusListener) {
         super(cardService, cardDao, keyManager, statusListener);
         setLayout(new GridBagLayout());
 
@@ -489,7 +488,7 @@ public class ManagementPanel extends BasePanel {
             }
             this.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
             String chipInfo = cardService.getUserInfo();
-            UserDTO dbUser = cardDao.getUserByCardID(cardUID);
+            CardHolderDTO dbUser = cardDao.getUserByCardID(cardUID);
 
             byte[] avatarBytes = cardService.downloadImage();
 
@@ -505,12 +504,10 @@ public class ManagementPanel extends BasePanel {
             }
 
             if (dbUser != null) {
-                txtPhone.setText(dbUser.getPhone());
+                txtPhone.setText(dbUser.getPhoneNumber());
                 txtIdentityCard.setText(dbUser.getIdentityCard());
                 if (txtOwnerName.getText().isEmpty())
-                    txtOwnerName.setText(dbUser.getName());
-                if (txtLicensePlate.getText().isEmpty())
-                    txtLicensePlate.setText(dbUser.getLicensePlate());
+                    txtOwnerName.setText(dbUser.getFullName());
             } else {
                 txtPhone.setText("");
                 txtIdentityCard.setText("");
@@ -541,8 +538,19 @@ public class ManagementPanel extends BasePanel {
         if (!validateUpdateInputs()) {
             return;
         }
+
         try {
-            cardDao.validateRegisterInfo(txtPhone.getText().trim(), txtIdentityCard.getText().trim());
+            String cardUID = cardService.getCardID();
+            int holderId = cardDao.getHolderIdByCardUID(cardUID);
+            if (holderId == -1) {
+                showError("Không tìm thấy chủ thẻ trong hệ thống!");
+                return;
+            }
+            cardDao.validateUpdateInfo(
+                    txtPhone.getText().trim(),
+                    txtIdentityCard.getText().trim(),
+                    holderId
+            );
         } catch (SQLException e) {
             showError(e.getMessage());
             return;
@@ -605,6 +613,7 @@ public class ManagementPanel extends BasePanel {
             this.setCursor(Cursor.getDefaultCursor());
             cardService.disconnect();
             btnSave.setEnabled(false);
+            btnViewInfo.setEnabled(false);
         }
     }
 
