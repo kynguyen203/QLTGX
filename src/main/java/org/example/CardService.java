@@ -164,10 +164,27 @@ public class CardService {
         }
     }
 
-    public boolean changePin(String newPin) {
+    public void changePin(String newPin) throws Exception {
         byte[] pinBytes = newPin.getBytes();
         CommandAPDU cmd = new CommandAPDU(0x00, INS_CHANGE_PIN, 0x00, 0x00, pinBytes);
-        return sendAPDU(cmd);
+
+        ResponseAPDU response = channel.transmit(cmd);
+
+        int sw = response.getSW();
+
+        switch (sw) {
+            case 0x9000:
+                return;
+            case 0x6985:
+                throw new Exception("Mã PIN mới không được trùng với mã PIN hiện tại!");
+            case 0x6903:
+            case 0x6983:
+                throw new Exception("Lỗi xác thực hoặc thẻ đã bị khóa.");
+            case 0x6700:
+                throw new Exception("Độ dài PIN không hợp lệ.");
+            default:
+                throw new Exception("Đổi PIN thất bại. Mã lỗi: 0x" + Integer.toHexString(sw));
+        }
     }
 
     public boolean unblockCard(String puk) {
