@@ -188,8 +188,6 @@ public class ParkingPanel extends BasePanel {
             int newBalance = cardService.getBalance();
             cardDao.updateCardBalance(cardUID, newBalance);
             cardDao.checkOut(cardUID, totalFee);
-
-            // Notify balance update
             notifyBalance(newBalance);
 
             loadParkingData();

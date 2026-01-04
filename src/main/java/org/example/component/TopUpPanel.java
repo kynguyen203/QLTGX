@@ -51,8 +51,8 @@ public class TopUpPanel extends BasePanel {
         lblTopUpCardInfo.setForeground(Color.GRAY);
         card.add(lblTopUpCardInfo, gbc);
 
-        lblBalance = new JLabel("Số dư: 0 VNĐ"); // Local display
-        lblBalance.setVisible(false); // Maybe show it in the info label instead
+        lblBalance = new JLabel("Số dư: 0 VNĐ");
+        lblBalance.setVisible(false);
 
         gbc.gridy = 2;
         JLabel lblAmount = new JLabel("Số tiền nạp (VNĐ):");
@@ -122,7 +122,7 @@ public class TopUpPanel extends BasePanel {
                         + "Số dư: <span style='color:red; font-size:14px'>" + formatCurrency(chipBalance) + "</span>"
                         + "</div></html>";
                         lblTopUpCardInfo.setText(infoHtml);
-                        lblBalance.setText("Số dư: " + formatCurrency(chipBalance));
+                        notifyBalance(chipBalance);
                         showSuccess("Đã nhận diện thẻ: " + cardUID);
                         btnTopUp.setEnabled(true);
             } else {
