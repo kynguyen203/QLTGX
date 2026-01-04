@@ -30,6 +30,8 @@ public class ManagementPanel extends BasePanel {
     private JButton btnSave;
     private JButton btnChangePin;
     private JButton btnViewInfo;
+    private JButton btnEdit;
+    private JButton btnSelectImage;
 
     private enum FormMode {
         REGISTER_MODE, UPDATE_MODE
@@ -47,7 +49,7 @@ public class ManagementPanel extends BasePanel {
         gbc.gridy = 0;
         gbc.weightx = 1.0;
         gbc.fill = GridBagConstraints.BOTH;
-        gbc.insets = new Insets(0, 0, 15, 0);
+        gbc.insets = new Insets(0, 0, 6, 0);
 
         add(createRegisterCard(), gbc);
 
@@ -68,21 +70,21 @@ public class ManagementPanel extends BasePanel {
         JPanel card = createCard("Quản lý Thông tin Thẻ");
         card.setLayout(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(5, 10, 5, 10);
+        gbc.insets = new Insets(2, 10, 2, 10);
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
         JPanel infoPanel = new JPanel(new GridBagLayout());
         infoPanel.setOpaque(false);
         GridBagConstraints gbcInfo = new GridBagConstraints();
-        gbcInfo.insets = new Insets(5, 5, 5, 5);
+        gbcInfo.insets = new Insets(2, 5, 2, 5);
         gbcInfo.fill = GridBagConstraints.HORIZONTAL;
 
         JPanel modePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         modePanel.setOpaque(false);
         JRadioButton rbRegister = new JRadioButton("Đăng ký mới");
         JRadioButton rbUpdate = new JRadioButton("Xem / Cập nhật");
-        rbRegister.setFont(new Font("Segoe UI", Font.BOLD, 14));
-        rbUpdate.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        rbRegister.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        rbUpdate.setFont(new Font("Segoe UI", Font.BOLD, 13));
         rbRegister.setOpaque(false);
         rbUpdate.setOpaque(false);
 
@@ -101,6 +103,7 @@ public class ManagementPanel extends BasePanel {
         infoPanel.add(modePanel, gbcInfo);
 
         btnCheckCard = createWarningButton("Kiểm tra thẻ trắng");
+        btnCheckCard.setPreferredSize(new Dimension(0, 30));
         gbcInfo.gridy = 1;
         infoPanel.add(btnCheckCard, gbcInfo);
 
@@ -112,6 +115,7 @@ public class ManagementPanel extends BasePanel {
         gbcInfo.gridx = 1;
         gbcInfo.weightx = 0.7;
         txtOwnerName = createStyledTextField();
+        txtOwnerName.setPreferredSize(new Dimension(0, 28));
         infoPanel.add(txtOwnerName, gbcInfo);
 
         gbcInfo.gridx = 0;
@@ -119,6 +123,7 @@ public class ManagementPanel extends BasePanel {
         infoPanel.add(createLabel("Số điện thoại:"), gbcInfo);
         gbcInfo.gridx = 1;
         txtPhone = createStyledTextField();
+        txtPhone.setPreferredSize(new Dimension(0, 28));
         infoPanel.add(txtPhone, gbcInfo);
 
         gbcInfo.gridx = 0;
@@ -126,6 +131,7 @@ public class ManagementPanel extends BasePanel {
         infoPanel.add(createLabel("CCCD/CMND:"), gbcInfo);
         gbcInfo.gridx = 1;
         txtIdentityCard = createStyledTextField();
+        txtIdentityCard.setPreferredSize(new Dimension(0, 28));
         infoPanel.add(txtIdentityCard, gbcInfo);
 
         gbcInfo.gridx = 0;
@@ -133,6 +139,7 @@ public class ManagementPanel extends BasePanel {
         infoPanel.add(createLabel("Biển số xe:"), gbcInfo);
         gbcInfo.gridx = 1;
         txtLicensePlate = createStyledTextField();
+        txtLicensePlate.setPreferredSize(new Dimension(0, 28));
         infoPanel.add(txtLicensePlate, gbcInfo);
 
         gbcInfo.gridx = 0;
@@ -140,8 +147,8 @@ public class ManagementPanel extends BasePanel {
         infoPanel.add(createLabel("Loại xe:"), gbcInfo);
         gbcInfo.gridx = 1;
         comboVehicleType = new JComboBox<>(new String[] { "Xe máy", "Ô tô", "Xe đạp" });
-        comboVehicleType.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        comboVehicleType.setPreferredSize(new Dimension(0, 35));
+        comboVehicleType.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        comboVehicleType.setPreferredSize(new Dimension(0, 28));
         infoPanel.add(comboVehicleType, gbcInfo);
 
         gbcInfo.gridx = 0;
@@ -150,6 +157,7 @@ public class ManagementPanel extends BasePanel {
         infoPanel.add(lblPin, gbcInfo);
         gbcInfo.gridx = 1;
         txtPin = createStyledPasswordField();
+        txtPin.setPreferredSize(new Dimension(0, 28));
         infoPanel.add(txtPin, gbcInfo);
 
         gbc.gridx = 0;
@@ -157,17 +165,18 @@ public class ManagementPanel extends BasePanel {
         gbc.weightx = 0.65;
         card.add(infoPanel, gbc);
 
-        JPanel avatarPanel = new JPanel(new BorderLayout(0, 5));
+        JPanel avatarPanel = new JPanel(new BorderLayout(0, 2));
         avatarPanel.setOpaque(false);
         avatarPanel.setBorder(new TitledBorder("Ảnh Chủ xe"));
 
         lblAvatar = new JLabel("Chưa có ảnh", SwingConstants.CENTER);
-        lblAvatar.setPreferredSize(new Dimension(140, 180));
+        lblAvatar.setPreferredSize(new Dimension(140, 135));
         lblAvatar.setBorder(BorderFactory.createLineBorder(Color.GRAY));
         lblAvatar.setOpaque(true);
         lblAvatar.setBackground(Color.WHITE);
 
-        JButton btnSelectImage = createSecondaryButton("Chọn ảnh...");
+        btnSelectImage = createSecondaryButton("Chọn ảnh...");
+        btnSelectImage.setPreferredSize(new Dimension(0, 28));
         btnSelectImage.addActionListener(e -> logicSelectImage());
 
         avatarPanel.add(lblAvatar, BorderLayout.CENTER);
@@ -183,21 +192,28 @@ public class ManagementPanel extends BasePanel {
         buttonPanel.setOpaque(false);
 
         btnViewInfo = createPrimaryButton("Xem thông tin");
-        btnViewInfo.setPreferredSize(new Dimension(150, 45));
+        btnViewInfo.setPreferredSize(new Dimension(130, 35));
         btnViewInfo.setVisible(false);
 
+        btnEdit = createSecondaryButton("Chỉnh sửa");
+        btnEdit.setPreferredSize(new Dimension(130, 35));
+        btnEdit.setVisible(false);
+        btnEdit.setEnabled(false);
+
         btnSave = createPrimaryButton("Đăng ký");
-        btnSave.setPreferredSize(new Dimension(150, 45));
+        btnSave.setPreferredSize(new Dimension(130, 35));
         btnSave.setEnabled(false);
 
         buttonPanel.add(btnViewInfo);
+        buttonPanel.add(btnEdit);
         buttonPanel.add(btnSave);
 
         gbc.gridx = 0;
         gbc.gridy = 1;
         gbc.gridwidth = 2;
         gbc.anchor = GridBagConstraints.CENTER;
-        gbc.weighty = 1.0;
+        gbc.weighty = 0;
+        gbc.insets = new Insets(5, 0, 5, 0);
         card.add(buttonPanel, gbc);
 
         ActionListener modeListener = e -> {
@@ -207,24 +223,29 @@ public class ManagementPanel extends BasePanel {
             lblAvatar.setText("Chưa có ảnh");
             btnSave.setEnabled(false);
             btnViewInfo.setEnabled(false);
+            btnEdit.setEnabled(false);
 
             if (rbRegister.isSelected()) {
                 currentMode = FormMode.REGISTER_MODE;
                 btnCheckCard.setText("Kiểm tra thẻ trắng");
                 btnViewInfo.setVisible(false);
+                btnEdit.setVisible(false);
                 btnSave.setText("Đăng ký");
                 btnSave.setVisible(true);
                 lblPin.setVisible(true);
                 txtPin.setVisible(true);
+                setFieldsEditable(true); // Đăng ký luôn mở
             } else {
                 currentMode = FormMode.UPDATE_MODE;
                 btnCheckCard.setText("Quẹt thẻ");
                 btnViewInfo.setVisible(true);
+                btnEdit.setVisible(true);
                 btnViewInfo.setEnabled(false);
                 btnSave.setText("Lưu thay đổi");
                 btnSave.setVisible(true);
                 lblPin.setVisible(false);
                 txtPin.setVisible(false);
+                setFieldsEditable(false); // Cập nhật mặc định khóa
             }
         };
         rbRegister.addActionListener(modeListener);
@@ -240,6 +261,12 @@ public class ManagementPanel extends BasePanel {
 
         btnViewInfo.addActionListener(e -> logicShowCardInfo());
 
+        btnEdit.addActionListener(e -> {
+            setFieldsEditable(true);
+            btnSave.setEnabled(true);
+            btnEdit.setEnabled(false);
+        });
+
         btnSave.addActionListener(e -> {
             if (currentMode == FormMode.REGISTER_MODE) {
                 logicRegister();
@@ -251,17 +278,89 @@ public class ManagementPanel extends BasePanel {
         return card;
     }
 
+    // Hàm hỗ trợ khóa/mở khóa các trường
+    private void setFieldsEditable(boolean editable) {
+        txtOwnerName.setEditable(editable);
+        txtPhone.setEditable(editable);
+        txtIdentityCard.setEditable(editable);
+        txtLicensePlate.setEditable(editable);
+        comboVehicleType.setEnabled(editable);
+        btnSelectImage.setEnabled(editable);
+    }
+
+    private void logicShowCardInfo() {
+        try {
+            String cardUID = cardService.getCardID();
+            if (!performSecureLogin(cardUID,"xem thông tin thẻ")) {
+                notifyStatus("Thẻ: chưa kết nối", Color.WHITE);
+                cardService.disconnect();
+                return;
+            }
+            this.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+            String chipInfo = cardService.getUserInfo();
+            CardHolderDTO dbUser = cardDao.getUserByCardID(cardUID);
+            byte[] avatarBytes = cardService.downloadImage();
+            this.setCursor(Cursor.getDefaultCursor());
+
+            if (chipInfo != null) {
+                Map<String, String> infoMap = cardService.getUserInfoMap(chipInfo);
+                if (infoMap != null) {
+                    txtOwnerName.setText(infoMap.get("name"));
+                    txtLicensePlate.setText(infoMap.get("license"));
+                    comboVehicleType.setSelectedItem(infoMap.get("type"));
+                }
+            }
+
+            if (dbUser != null) {
+                txtPhone.setText(dbUser.getPhoneNumber());
+                txtIdentityCard.setText(dbUser.getIdentityCard());
+                if (txtOwnerName.getText().isEmpty())
+                    txtOwnerName.setText(dbUser.getFullName());
+            } else {
+                txtPhone.setText("");
+                txtIdentityCard.setText("");
+                notifyStatus("Cảnh báo: Không tìm thấy dữ liệu trên Server", Color.ORANGE);
+            }
+
+            if (avatarBytes != null && avatarBytes.length > 0) {
+                ImageIcon icon = ImageUtils.convertBytesToIcon(avatarBytes);
+                lblAvatar.setIcon(icon);
+                lblAvatar.setText("");
+                selectedAvatarFile = null;
+            } else {
+                lblAvatar.setIcon(null);
+            }
+
+            // SAU KHI TẢI DỮ LIỆU: Khóa trường và bật nút Chỉnh sửa
+            setFieldsEditable(false);
+            btnEdit.setEnabled(true);
+            btnSave.setEnabled(false);
+
+            notifyStatus("Thẻ Online: " + cardUID, SUCCESS_COLOR);
+        } catch (Exception e) {
+            e.printStackTrace();
+            notifyStatus("Thẻ: chưa kết nối", Color.RED);
+            cardService.disconnect();
+            showError("Lỗi khi đọc thẻ: " + e.getMessage());
+        } finally {
+            this.setCursor(Cursor.getDefaultCursor());
+        }
+    }
+
+    // ... (Giữ nguyên các hàm: createChangePinCard, createUnblockCardPanel, logicSelectImage, performBlankCardCheck, logicRegister, logicCheckCardExisting, logicUpdateCardInfo, logicUnblockCard, logicCheckCard, logicChangePin, validateInputs, validateUpdateInputs)
+
     private JPanel createChangePinCard() {
         JPanel card = createCard("Đổi mã PIN");
         card.setLayout(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(8, 10, 8, 10);
+        gbc.insets = new Insets(4, 10, 4, 10);
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.gridx = 0;
         gbc.gridy = 0;
         gbc.weightx = 1.0;
         gbc.gridwidth = 2;
         JButton btnCheckCard = createWarningButton("Quẹt thẻ");
+        btnCheckCard.setPreferredSize(new Dimension(0, 28));
         btnCheckCard.addActionListener(e -> logicCheckCard());
         card.add(btnCheckCard, gbc);
         gbc.gridwidth = 1;
@@ -271,6 +370,7 @@ public class ManagementPanel extends BasePanel {
         card.add(createLabel("PIN mới:"), gbc);
         gbc.gridx = 1;
         txtNewPin = createStyledPasswordField();
+        txtNewPin.setPreferredSize(new Dimension(0, 28));
         card.add(txtNewPin, gbc);
 
         gbc.gridx = 0;
@@ -278,12 +378,14 @@ public class ManagementPanel extends BasePanel {
         card.add(createLabel("Xác nhận PIN:"), gbc);
         gbc.gridx = 1;
         txtConfirmPin = createStyledPasswordField();
+        txtConfirmPin.setPreferredSize(new Dimension(0, 28));
         card.add(txtConfirmPin, gbc);
 
         gbc.gridx = 1;
         gbc.gridy = 3;
         gbc.anchor = GridBagConstraints.EAST;
         btnChangePin = createWarningButton("Đổi PIN");
+        btnChangePin.setPreferredSize(new Dimension(100, 30));
         btnChangePin.setEnabled(false);
         btnChangePin.addActionListener(e -> logicChangePin());
         card.add(btnChangePin, gbc);
@@ -296,16 +398,16 @@ public class ManagementPanel extends BasePanel {
         card.setLayout(new BorderLayout(15, 0));
 
         JLabel lblInfo = new JLabel(
-                "<html><i>Sử dụng khi thẻ bị khóa do đã nhập sai PIN quá 3 lần.<br>Cần mật khẩu (Personal Unblocking Key) để mở khóa.</i></html>");
-        lblInfo.setFont(new Font("Segoe UI", Font.ITALIC, 13));
+                "<html><i>Sử dụng khi thẻ bị khóa do nhập sai PIN quá 3 lần.<br>Cần mã PUK để mở khóa.</i></html>");
+        lblInfo.setFont(new Font("Segoe UI", Font.ITALIC, 12));
         lblInfo.setForeground(TEXT_PRIMARY);
         card.add(lblInfo, BorderLayout.CENTER);
 
         JButton btnUnblock = new JButton("Mở khóa Thẻ");
-        btnUnblock.setFont(new Font("Segoe UI", Font.BOLD, 13));
+        btnUnblock.setFont(new Font("Segoe UI", Font.BOLD, 12));
         btnUnblock.setBackground(new Color(155, 89, 182));
         btnUnblock.setForeground(Color.BLUE);
-        btnUnblock.setPreferredSize(new Dimension(150, 40));
+        btnUnblock.setPreferredSize(new Dimension(130, 35));
         btnUnblock.setCursor(new Cursor(Cursor.HAND_CURSOR));
 
         btnUnblock.addActionListener(e -> logicUnblockCard());
@@ -477,63 +579,6 @@ public class ManagementPanel extends BasePanel {
         }
     }
 
-    private void logicShowCardInfo() {
-        try {
-
-            String cardUID = cardService.getCardID();
-            if (!performSecureLogin(cardUID,"xem thông tin thẻ")) {
-                notifyStatus("Thẻ: chưa kết nối", Color.WHITE);
-                cardService.disconnect();
-                return;
-            }
-            this.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
-            String chipInfo = cardService.getUserInfo();
-            CardHolderDTO dbUser = cardDao.getUserByCardID(cardUID);
-
-            byte[] avatarBytes = cardService.downloadImage();
-
-            this.setCursor(Cursor.getDefaultCursor());
-
-            if (chipInfo != null) {
-                Map<String, String> infoMap = cardService.getUserInfoMap(chipInfo);
-                if (infoMap != null) {
-                    txtOwnerName.setText(infoMap.get("name"));
-                    txtLicensePlate.setText(infoMap.get("license"));
-                    comboVehicleType.setSelectedItem(infoMap.get("type"));
-                }
-            }
-
-            if (dbUser != null) {
-                txtPhone.setText(dbUser.getPhoneNumber());
-                txtIdentityCard.setText(dbUser.getIdentityCard());
-                if (txtOwnerName.getText().isEmpty())
-                    txtOwnerName.setText(dbUser.getFullName());
-            } else {
-                txtPhone.setText("");
-                txtIdentityCard.setText("");
-                notifyStatus("Cảnh báo: Không tìm thấy dữ liệu trên Server", Color.ORANGE);
-            }
-
-            if (avatarBytes != null && avatarBytes.length > 0) {
-                ImageIcon icon = ImageUtils.convertBytesToIcon(avatarBytes);
-                lblAvatar.setIcon(icon);
-                lblAvatar.setText("");
-                selectedAvatarFile = null;
-            } else {
-                lblAvatar.setIcon(null);
-            }
-            notifyStatus("Thẻ Online: " + cardUID, SUCCESS_COLOR);
-            btnSave.setEnabled(true);
-        } catch (Exception e) {
-            e.printStackTrace();
-            notifyStatus("Thẻ: chưa kết nối", DANGER_COLOR);
-            cardService.disconnect();
-            showError("Lỗi khi đọc thẻ: " + e.getMessage());
-        } finally {
-            this.setCursor(Cursor.getDefaultCursor());
-        }
-    }
-
     private void logicUpdateCardInfo() {
         if (!validateUpdateInputs()) {
             return;
@@ -614,6 +659,7 @@ public class ManagementPanel extends BasePanel {
             cardService.disconnect();
             btnSave.setEnabled(false);
             btnViewInfo.setEnabled(false);
+            btnEdit.setEnabled(false);
         }
     }
 
@@ -709,6 +755,7 @@ public class ManagementPanel extends BasePanel {
         if (!txtLicensePlate.getText().trim().matches("^[0-9]{2}[A-Z][0-9][0-9]{5}$")) { showError("Biển số sai định dạng (ví dụ:37A123456)!"); return false; }
         return true;
     }
+
     private void resetForm() {
         txtOwnerName.setText("");
         txtPhone.setText("");
@@ -720,6 +767,9 @@ public class ManagementPanel extends BasePanel {
         selectedAvatarFile = null;
         txtPin.setText("");
         btnSave.setEnabled(false);
+        btnEdit.setEnabled(false);
         notifyStatus("Thẻ: Chưa kết nối", Color.WHITE);
+        if (currentMode == FormMode.REGISTER_MODE) setFieldsEditable(true);
+        else setFieldsEditable(false);
     }
 }
